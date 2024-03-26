@@ -629,6 +629,68 @@ module Redmine
         pdf.Output
       end
 
+      def duration(issue, view, query)
+        @view = view
+        @query = query
+        draw_obj = []
+
+        select_precedes = ->(issue) do
+          issue.relations_from.where(:relation_type => IssueRelation::TYPE_PRECEDES).map(&:issue_to).each do |follows|
+            next if draw_obj.include?(follows)
+
+            while follows
+              draw_obj.push(follows, follows.fixed_version, follows.project)
+              select_precedes.call(follows)
+              follows.children.each do |child|
+                draw_obj.push(child, child.fixed_version, child.project)
+                select_precedes.call(child)
+              end
+              follows = follows.parent
+            end
+          end
+        end
+
+        while issue
+          draw_obj.push(issue, issue.fixed_version, issue.project)
+          select_precedes.call(issue)
+          issue = issue.parent
+        end
+        draw_objs = draw_obj.compact.uniq
+        draw_objs.reject!{|obj| ![Project, Version, Issue].include?(obj.class)}
+
+        return_values = []
+        draw_objs.each do |obj|
+          @number_of_rows = 0
+          @lines = +''
+          render_object_row(obj, {format: :html, only: :lines, zoom: 2 ** @zoom, top: 0, top_increment: 20})
+          todo_content = Nokogiri::HTML.parse(@lines)
+          todo_context = todo_content.xpath(
+            "//div[contains(@class, 'task') and contains(@class, 'line')]/*"
+          ).to_s.tr("\n", '').gsub("'", "\\\\'")
+
+          klass_name = obj.class.name.underscore
+          elm_todo = "[id=task-todo-#{klass_name}-#{obj.id}]"
+          css_subject = 'span:not(.expander)'
+          elm_subject = "[id=#{klass_name}-#{obj.id}] > #{css_subject}"
+
+          subject_content = Nokogiri::HTML.parse(html_subject_content(obj))
+          subject_content = subject_content.css(css_subject).to_s.tr("\n", '').gsub("'", "\\\\'")
+
+          columns = []
+          case obj
+          when Issue
+            columns = query.columns
+          end
+          return_values << {:elm_subject => elm_subject,
+                            :elm_todo => elm_todo,
+                            :todo_context => todo_context,
+                            :subject_content => subject_content,
+                            :columns => columns,
+                            :obj => obj}
+        end
+        return_values
+      end
+
       private
 
       def coordinates(start_date, end_date, progress, zoom=nil)
@@ -913,7 +975,7 @@ module Redmine
                                              :id => html_id,
                                              :data => data_options)
           end
-          
+
           # Renders the tooltip
           if object.is_a?(Issue)
             s = view.content_tag(:span,
@@ -928,7 +990,7 @@ module Redmine
                                              :class => "tooltip hascontextmenu",
                                              :data => data_options)
           end
-          
+
           # Renders the label on the right
           if label
             style = +""
