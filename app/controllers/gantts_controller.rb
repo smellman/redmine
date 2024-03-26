@@ -59,14 +59,13 @@ class GanttsController < ApplicationController
   def change_duration
     return render_error(:status => :unprocessable_entity) unless request.xhr?
 
-    puts params
     @obj = Issue.find(params[:id])
     raise Unauthorized unless @obj.visible?
 
     ActiveRecord::Base.transaction do
       @obj.init_journal(User.current)
       @obj.safe_attributes = duration_params
-      if !@obj.save
+      unless @obj.save
         render_403(:message => @obj.errors.full_messages.join)
         raise ActiveRecord::Rollback
       end
