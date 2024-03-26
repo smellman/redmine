@@ -942,15 +942,15 @@ module Redmine
               content_opt[:data] = {"rels" => rels.to_json}
             end
             content_opt[:data].merge!({
-              :url_change_duration => Rails.application.routes.url_helpers.gantt_change_duration_path(
-                object
-              ),
-              :object => {
-                :start_date => object.start_date,
-                :due_date => object.due_date,
-                :lock_version => object.lock_version,
-              }.to_json,
-            })
+                                        :url_change_duration => Rails.application.routes.url_helpers.gantt_change_duration_path(
+                                          object
+                                        ),
+                                        :object => {
+                                          :start_date => object.start_date,
+                                          :due_date => object.due_date,
+                                          :lock_version => object.lock_version,
+                                        }.to_json,
+                                      })
           end
           content_opt[:data].merge!(data_options)
           bar_contents = []
